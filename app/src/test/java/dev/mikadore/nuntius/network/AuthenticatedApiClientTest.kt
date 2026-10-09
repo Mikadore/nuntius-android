@@ -5,14 +5,19 @@ import dev.mikadore.nuntius.network.model.PostWorkflowHealthRequest
 import dev.mikadore.nuntius.repos.AuthState
 import dev.mikadore.nuntius.repos.AuthUser
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AuthenticatedApiClientTest {
@@ -37,6 +42,40 @@ class AuthenticatedApiClientTest {
         assertEquals("api.example.test", generatedRequest.url().host())
         assertEquals("/nuntius/api/workflows/health", generatedRequest.url().encodedPath())
         assertEquals("Bearer first-token", authenticatedRequest.header("Authorization"))
+    }
+
+    @Test
+    fun providedAuthenticatedClientAddsBearerTokenToGeneratedApiRequest() = runBlocking {
+        val session = FakeAuthSession(loggedIn("injected-token", "https://api.example.test/"))
+        val authorizationHeader = AtomicReference<String?>()
+        val okHttpClient = dev.mikadore.nuntius.di.NetworkModule
+            .provideAuthenticatedOkHttpClient(session)
+            .newBuilder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                authorizationHeader.set(request.header("Authorization"))
+                okhttp3.Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(
+                        ResponseBody.create(
+                            MediaType.parse("application/json"),
+                            """{"status":"ok","service":"nuntius"}""",
+                        ),
+                    )
+                    .build()
+            }
+            .build()
+        val client = AuthenticatedApiClientImpl(session, okHttpClient)
+
+        val response = client.workflows
+            .postWorkflowHealth(PostWorkflowHealthRequest())
+            .execute()
+
+        assertTrue(response.isSuccessful)
+        assertEquals("Bearer injected-token", authorizationHeader.get())
     }
 
     @Test

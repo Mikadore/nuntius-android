@@ -1,5 +1,9 @@
 package dev.mikadore.nuntius.network
 
+import dev.mikadore.nuntius.network.api.DiagnosticsApi
+import dev.mikadore.nuntius.network.api.PairingApi
+import dev.mikadore.nuntius.network.api.ScaffoldApi
+import dev.mikadore.nuntius.network.api.WorkflowsApi
 import dev.mikadore.nuntius.repos.AuthRepository
 import dev.mikadore.nuntius.repos.AuthState
 import java.io.IOException
@@ -25,6 +29,11 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 /** Provides generated Retrofit APIs for the currently authenticated server. */
 interface AuthenticatedApiClient {
+    val diagnostics: DiagnosticsApi
+    val pairing: PairingApi
+    val scaffold: ScaffoldApi
+    val workflows: WorkflowsApi
+
     suspend fun <T : Any> service(serviceType: Class<T>): T
 }
 
@@ -104,6 +113,19 @@ class AuthenticatedApiClientImpl @Inject constructor(
     private val okHttpClient: OkHttpClient,
 ) : AuthenticatedApiClient {
     private val retrofits = ConcurrentHashMap<String, Retrofit>()
+    private val services = ConcurrentHashMap<ServiceCacheKey, Any>()
+
+    override val diagnostics: DiagnosticsApi
+        get() = serviceForCurrentUser(DiagnosticsApi::class.java)
+
+    override val pairing: PairingApi
+        get() = serviceForCurrentUser(PairingApi::class.java)
+
+    override val scaffold: ScaffoldApi
+        get() = serviceForCurrentUser(ScaffoldApi::class.java)
+
+    override val workflows: WorkflowsApi
+        get() = serviceForCurrentUser(WorkflowsApi::class.java)
 
     override suspend fun <T : Any> service(serviceType: Class<T>): T {
         val currentState = authSession.currentState()
@@ -116,7 +138,18 @@ class AuthenticatedApiClientImpl @Inject constructor(
             ?: throw AuthenticationRequiredException()
         if (user.apiKey.isBlank()) throw AuthenticationRequiredException()
 
-        val baseUrl = ServerBaseUrl.parse(user.serverUrl)
+        return serviceFor(user.serverUrl, serviceType)
+    }
+
+    private fun <T : Any> serviceForCurrentUser(serviceType: Class<T>): T {
+        val user = (authSession.currentState() as? AuthState.LoggedIn)?.user
+            ?: throw AuthenticationRequiredException()
+        if (user.apiKey.isBlank()) throw AuthenticationRequiredException()
+        return serviceFor(user.serverUrl, serviceType)
+    }
+
+    private fun <T : Any> serviceFor(serverUrl: String, serviceType: Class<T>): T {
+        val baseUrl = ServerBaseUrl.parse(serverUrl)
         val retrofit = retrofits.computeIfAbsent(baseUrl.toString()) {
             Retrofit.Builder()
                 .baseUrl(baseUrl)
@@ -124,8 +157,16 @@ class AuthenticatedApiClientImpl @Inject constructor(
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
         }
-        return retrofit.create(serviceType)
+        @Suppress("UNCHECKED_CAST")
+        return services.computeIfAbsent(ServiceCacheKey(baseUrl.toString(), serviceType)) {
+            retrofit.create(serviceType)
+        } as T
     }
+
+    private data class ServiceCacheKey(
+        val baseUrl: String,
+        val serviceType: Class<*>,
+    )
 }
 
 /** Validates and normalizes a configured server base URL, including any path prefix. */
