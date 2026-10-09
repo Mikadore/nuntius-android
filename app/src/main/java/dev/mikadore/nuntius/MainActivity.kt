@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val authState = authRepository.authState.first()
             val destination = when (authState) {
-                is AuthState.LoggedIn -> HomeActivity::class.java
+                is AuthState.LoggedIn -> AuthenticatedApp::class.java
                 AuthState.Loading, AuthState.LoggedOut -> LoginActivity::class.java
             }
             startActivity(Intent(this@MainActivity, destination))

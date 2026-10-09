@@ -242,7 +242,7 @@ class LoginActivity : ComponentActivity() {
     private fun openHome() {
         if (isOpeningHome) return
         isOpeningHome = true
-        startActivity(android.content.Intent(this, HomeActivity::class.java))
+        startActivity(android.content.Intent(this, AuthenticatedApp::class.java))
         finish()
     }
 
