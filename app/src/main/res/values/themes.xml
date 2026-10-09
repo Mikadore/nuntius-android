@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Nuntius" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Nuntius" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorAccent">@color/gruvbox_yellow</item>
+        <item name="android:statusBarColor">@color/gruvbox_background</item>
+        <item name="android:navigationBarColor">@color/gruvbox_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

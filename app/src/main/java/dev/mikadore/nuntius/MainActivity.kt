@@ -1,47 +1,33 @@
 package dev.mikadore.nuntius
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
-import dev.mikadore.nuntius.ui.theme.NuntiusTheme
+import dev.mikadore.nuntius.repos.AuthRepository
+import dev.mikadore.nuntius.repos.AuthState
+import javax.inject.Inject
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    @Inject
+    lateinit var authRepository: AuthRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            MainView()
-        }
-    }
-}
 
-@Preview
-@Composable
-fun MainView() {
-    NuntiusTheme {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Hello Android!")
+        lifecycleScope.launch {
+            val authState = authRepository.authState.first()
+            val destination = when (authState) {
+                is AuthState.LoggedIn -> HomeActivity::class.java
+                AuthState.Loading, AuthState.LoggedOut -> LoginActivity::class.java
             }
+            startActivity(Intent(this@MainActivity, destination))
+            finish()
         }
     }
-
 }
