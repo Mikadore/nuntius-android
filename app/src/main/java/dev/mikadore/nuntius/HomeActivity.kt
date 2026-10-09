@@ -25,14 +25,14 @@ class HomeActivity : ComponentActivity() {
     @Inject
     lateinit var authRepository: AuthRepository
 
-    private var qrContents by mutableStateOf("")
+    private var connectedServer by mutableStateOf("")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         lifecycleScope.launch {
             authRepository.authState.collect { authState ->
-                qrContents = (authState as? AuthState.LoggedIn)?.user?.apiKey.orEmpty()
+                connectedServer = (authState as? AuthState.LoggedIn)?.user?.serverUrl.orEmpty()
             }
         }
 
@@ -44,7 +44,7 @@ class HomeActivity : ComponentActivity() {
                             .fillMaxSize()
                             .padding(innerPadding),
                     ) {
-                        Text(text = qrContents)
+                        Text(text = "Connected to $connectedServer")
                     }
                 }
             }
