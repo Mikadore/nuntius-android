@@ -37,6 +37,8 @@ class AuthRepository @Inject constructor(
     private val migrationMutex = Mutex()
     @Volatile
     private var legacyMigrationComplete = false
+    @Volatile
+    private var latestAuthState: AuthState = AuthState.Loading
 
     val authState: Flow<AuthState> = dataStore.data
         .onStart { migrateLegacyCredential() }
@@ -45,7 +47,7 @@ class AuthRepository @Inject constructor(
             val apiKey = encryptedToken?.let { encrypted ->
                 runCatching { credentialCipher.decrypt(encrypted) }.getOrNull()
             }
-            if (apiKey.isNullOrBlank()) {
+            val state = if (apiKey.isNullOrBlank()) {
                 AuthState.LoggedOut
             } else {
                 AuthState.LoggedIn(
@@ -56,8 +58,13 @@ class AuthRepository @Inject constructor(
                     ),
                 )
             }
+            latestAuthState = state
+            state
         }
         .flowOn(Dispatchers.IO)
+
+    /** A synchronous in-memory view for request interceptors; persisted state remains authoritative. */
+    internal fun currentAuthState(): AuthState = latestAuthState
 
     suspend fun saveCredentials(serverUrl: String, apiKey: String, credentialId: String) {
         require(serverUrl.startsWith("https://")) { "The Nuntius server must use HTTPS" }
@@ -71,6 +78,9 @@ class AuthRepository @Inject constructor(
             // Remove credentials saved by earlier builds before credentials were encrypted.
             preferences.remove(LEGACY_API_TOKEN)
         }
+        latestAuthState = AuthState.LoggedIn(
+            AuthUser(apiKey = apiKey, serverUrl = serverUrl, credentialId = credentialId),
+        )
     }
 
     suspend fun logOut() {
@@ -80,6 +90,7 @@ class AuthRepository @Inject constructor(
             preferences.remove(CREDENTIAL_ID)
             preferences.remove(LEGACY_API_TOKEN)
         }
+        latestAuthState = AuthState.LoggedOut
     }
 
     private suspend fun migrateLegacyCredential() {
