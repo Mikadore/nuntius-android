@@ -1,39 +1,33 @@
 package dev.mikadore.nuntius
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.lifecycleScope
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanner
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
-import dagger.hilt.android.AndroidEntryPoint
-import dev.mikadore.nuntius.repos.AuthRepository
+import dev.mikadore.nuntius.lib.PairingRequest
 import dev.mikadore.nuntius.ui.theme.NuntiusTheme
-import javax.inject.Inject
-import kotlinx.coroutines.launch
 
-@AndroidEntryPoint
 class LoginActivity : ComponentActivity() {
-
-    @Inject
-    lateinit var authRepository: AuthRepository
 
     private lateinit var barcodeScanner: GmsBarcodeScanner
     private var errorMessage by mutableStateOf<String?>(null)
+    private var pairingRequest by mutableStateOf<PairingRequest?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +52,26 @@ class LoginActivity : ComponentActivity() {
                         Text(message, color = MaterialTheme.colorScheme.error)
                     }
                 }
+
+                pairingRequest?.let { request ->
+                    AlertDialog(
+                        onDismissRequest = { pairingRequest = null },
+                        title = { Text("Pairing request") },
+                        text = {
+                            Column {
+                                Text("Server hostname: ${request.serverHostname}")
+                                Text("Server claim path: ${request.serverClaimPath}")
+                                Text("Session ID: ${request.sessionId}")
+                                Text("Token: ${request.token}")
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { pairingRequest = null }) {
+                                Text("Close")
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -66,16 +80,16 @@ class LoginActivity : ComponentActivity() {
         errorMessage = null
         barcodeScanner.startScan()
             .addOnSuccessListener { barcode ->
-                val apiKey = barcode.rawValue?.trim()
-                if (apiKey.isNullOrEmpty()) {
-                    errorMessage = "The QR code did not contain a login key."
+                val pairingUriValue = barcode.rawValue?.trim()
+                if (pairingUriValue.isNullOrEmpty()) {
+                    errorMessage = "The QR code did not contain a pairing URI."
                     return@addOnSuccessListener
                 }
 
-                lifecycleScope.launch {
-                    authRepository.saveApiKey(apiKey)
-                    startActivity(Intent(this@LoginActivity, HomeActivity::class.java))
-                    finish()
+                try {
+                    pairingRequest = PairingRequest.parse(pairingUriValue)
+                } catch (_: Exception) {
+                    errorMessage = "The QR code did not contain a valid pairing URI."
                 }
             }
             .addOnFailureListener {
