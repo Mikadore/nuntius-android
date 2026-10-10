@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">Nuntius</string>
+    <string name="gateway_notification_channel">Gateway connection</string>
+    <string name="gateway_notification_channel_description">Persistent connection to the configured Nuntius server</string>
+    <string name="gateway_notification_title">Nuntius gateway</string>
+    <string name="gateway_notification_stop">Disconnect/Stop</string>
+    <string name="gateway_status_disconnected">Disconnected</string>
+    <string name="gateway_status_connecting">Connecting to server</string>
+    <string name="gateway_status_connected">Connected</string>
+    <string name="gateway_status_reconnecting">Connection interrupted · reconnecting</string>
+    <string name="gateway_status_error">Gateway unavailable</string>
 </resources>

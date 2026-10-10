@@ -4,6 +4,7 @@ import dev.mikadore.nuntius.network.api.DiagnosticsApi
 import dev.mikadore.nuntius.network.api.PairingApi
 import dev.mikadore.nuntius.network.api.ScaffoldApi
 import dev.mikadore.nuntius.network.api.WorkflowsApi
+import dev.mikadore.nuntius.gateway.GatewayLogger
 import dev.mikadore.nuntius.repos.AuthRepository
 import dev.mikadore.nuntius.repos.AuthState
 import java.io.IOException
@@ -81,29 +82,42 @@ class AuthSessionImpl @Inject constructor(
 /** Adds the active account's bearer token only to its validated HTTPS origin. */
 class AuthenticatedBearerInterceptor(
     private val authSession: AuthSession,
+    private val gatewayLogger: GatewayLogger? = null,
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response =
         chain.proceed(authenticatedRequest(chain.request()))
 
     internal fun authenticatedRequest(request: Request): Request {
+        val isGatewayUpgrade = request.header("Upgrade").equals("websocket", ignoreCase = true)
         val user = (authSession.currentState() as? AuthState.LoggedIn)?.user
-            ?: throw IOException("Authentication is required for this API request")
+            ?: refuse("No authenticated session is available.", isGatewayUpgrade)
         if (user.apiKey.isBlank()) {
-            throw IOException("Authentication is required for this API request")
+            refuse("The active credential is empty.", isGatewayUpgrade)
         }
 
         val configuredServer = try {
             ServerBaseUrl.parse(user.serverUrl)
         } catch (_: InvalidServerUrlException) {
-            throw IOException("The configured Nuntius server URL is invalid")
+            refuse("The configured server URL is invalid.", isGatewayUpgrade)
         }
         if (!request.url().isHttps() || !request.url().sameOriginAs(configuredServer)) {
-            throw IOException("Refusing to send authentication to a different server")
+            refuse(
+                "Refused to send authorization outside the configured HTTPS origin.",
+                isGatewayUpgrade,
+            )
         }
 
+        if (isGatewayUpgrade) {
+            gatewayLogger?.debug("Attached bearer authorization to the same-origin WebSocket upgrade.")
+        }
         return request.newBuilder()
             .header("Authorization", "Bearer ${user.apiKey}")
             .build()
+    }
+
+    private fun refuse(reason: String, isGatewayUpgrade: Boolean): Nothing {
+        if (isGatewayUpgrade) gatewayLogger?.warn("Gateway authorization refused: $reason")
+        throw IOException(reason)
     }
 }
 

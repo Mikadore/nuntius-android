@@ -23,6 +23,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.mikadore.nuntius.components.AlertCard
+import dev.mikadore.nuntius.gateway.GatewayConnection
+import dev.mikadore.nuntius.gateway.GatewayState
 import dev.mikadore.nuntius.repos.AuthRepository
 import dev.mikadore.nuntius.repos.AuthState
 import dev.mikadore.nuntius.repos.ConnectionRepository
@@ -37,6 +39,7 @@ import kotlinx.coroutines.flow.stateIn
 class HomeViewModel @Inject constructor(
     authRepository: AuthRepository,
     connectionRepository: ConnectionRepository,
+    gatewayConnection: GatewayConnection,
 ) : ViewModel() {
     val connectedServer: StateFlow<String> = authRepository.authState
         .map { authState ->
@@ -57,6 +60,8 @@ class HomeViewModel @Inject constructor(
             ),
             initialValue = HealthStatus.Checking,
         )
+
+    val gatewayState: StateFlow<GatewayState> = gatewayConnection.state
 }
 
 @Composable
@@ -65,6 +70,7 @@ fun HomePage(
 ) {
     val connectedServer by viewModel.connectedServer.collectAsStateWithLifecycle()
     val health by viewModel.health.collectAsStateWithLifecycle()
+    val gatewayState by viewModel.gatewayState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
@@ -79,8 +85,29 @@ fun HomePage(
             )
         }
 
+        GatewayStatus(gatewayState)
         HealthStatusCard(status = health)
     }
+}
+
+@Composable
+private fun GatewayStatus(state: GatewayState) {
+    val statusText = when (state) {
+        GatewayState.Disconnected -> "Disconnected"
+        GatewayState.Connecting -> "Connecting"
+        GatewayState.Connected -> "Connected"
+        is GatewayState.Reconnecting -> "Reconnecting"
+        is GatewayState.Error -> state.message
+    }
+    Text(
+        text = "Gateway: $statusText",
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (state == GatewayState.Connected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
 }
 
 @Composable

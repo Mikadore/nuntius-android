@@ -1,5 +1,6 @@
 package dev.mikadore.nuntius.network
 
+import dev.mikadore.nuntius.gateway.GatewayLogger
 import dev.mikadore.nuntius.network.api.WorkflowsApi
 import dev.mikadore.nuntius.network.model.PostWorkflowHealthRequest
 import dev.mikadore.nuntius.repos.AuthState
@@ -49,7 +50,7 @@ class AuthenticatedApiClientTest {
         val session = FakeAuthSession(loggedIn("injected-token", "https://api.example.test/"))
         val authorizationHeader = AtomicReference<String?>()
         val okHttpClient = dev.mikadore.nuntius.di.NetworkModule
-            .provideAuthenticatedOkHttpClient(session)
+            .provideAuthenticatedOkHttpClient(session, FakeGatewayLogger())
             .newBuilder()
             .addInterceptor { chain ->
                 val request = chain.request()
@@ -150,7 +151,8 @@ class AuthenticatedApiClientTest {
     @Test
     fun authenticatedClientDoesNotFollowRedirects() {
         val session = FakeAuthSession(loggedIn("token", "https://api.example.test/"))
-        val client = dev.mikadore.nuntius.di.NetworkModule.provideAuthenticatedOkHttpClient(session)
+        val client = dev.mikadore.nuntius.di.NetworkModule
+            .provideAuthenticatedOkHttpClient(session, FakeGatewayLogger())
 
         assertFalse(client.followRedirects())
         assertFalse(client.followSslRedirects())
@@ -163,6 +165,21 @@ class AuthenticatedApiClientTest {
         val foreignRequest = Request.Builder().url("https://other.example.test/api/workflows/health").build()
 
         assertThrows(IOException::class.java) { interceptor.authenticatedRequest(foreignRequest) }
+    }
+
+    @Test
+    fun gatewayDiagnosticsConfirmHeaderAttachmentWithoutLoggingTokenOrServerUrl() {
+        val session = FakeAuthSession(loggedIn("sensitive-token", "https://api.example.test/"))
+        val logger = FakeGatewayLogger()
+        val request = Request.Builder()
+            .url("https://api.example.test/api/gateway")
+            .header("Upgrade", "websocket")
+            .build()
+
+        AuthenticatedBearerInterceptor(session, logger).authenticatedRequest(request)
+
+        assertTrue(logger.messages.any { "Attached bearer authorization" in it })
+        assertTrue(logger.messages.none { "sensitive-token" in it || "api.example.test" in it })
     }
 
     private fun authenticatedClient(session: FakeAuthSession): AuthenticatedApiClient =
@@ -191,6 +208,19 @@ class AuthenticatedApiClientTest {
 
         fun set(authState: AuthState) {
             mutableState.value = authState
+        }
+    }
+
+    private class FakeGatewayLogger : GatewayLogger {
+        val messages = mutableListOf<String>()
+        override fun debug(message: String) {
+            messages.add(message)
+        }
+        override fun info(message: String) {
+            messages.add(message)
+        }
+        override fun warn(message: String) {
+            messages.add(message)
         }
     }
 }
