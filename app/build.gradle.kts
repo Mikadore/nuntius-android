@@ -1,9 +1,12 @@
+import com.google.protobuf.gradle.id
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.dagger.hilt.android)
     alias(libs.plugins.ksp)
     alias(libs.plugins.openapi.generator)
+    alias(libs.plugins.protobuf)
 }
 
 android {
@@ -38,6 +41,21 @@ android {
     )
     buildFeatures {
         compose = true
+    }
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.get()}"
+    }
+    generateProtoTasks {
+        all().configureEach {
+            builtins {
+                id("java") {
+                    option("lite")
+                }
+            }
+        }
     }
 }
 
@@ -93,6 +111,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.play.services.code.scanner)
     implementation(libs.okhttp)
+    implementation(libs.protobuf.javalite)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
     implementation(libs.retrofit.converter.scalars)

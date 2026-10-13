@@ -3,6 +3,8 @@ package dev.mikadore.nuntius.gateway
 import dev.mikadore.nuntius.network.AuthSession
 import dev.mikadore.nuntius.repos.AuthState
 import dev.mikadore.nuntius.repos.AuthUser
+import dev.nuntius.gateway.proto.GatewayMessage
+import dev.nuntius.gateway.proto.Greeting
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +75,7 @@ class GatewayManagerTest {
     }
 
     @Test
-    fun openSocketExposesConnectedStateAndOpaqueEventsThenReconnectsOnClose() = runBlocking {
+    fun openSocketExposesConnectedStateAndParsedProtobufEventsThenReconnectsOnClose() = runBlocking {
         val factory = FakeWebSocketFactory()
         val auth = FakeAuthSession(loggedIn("first-key"))
         val logger = FakeGatewayLogger()
@@ -88,12 +90,24 @@ class GatewayManagerTest {
         withTimeout(2_000) { gateway.state.first { it == GatewayState.Connected } }
         assertTrue(gateway.sendText("opaque request"))
         assertEquals("opaque request", socket.lastSentText)
-        socket.listener.onMessage(socket, "opaque response")
-        assertEquals(GatewayEvent.Text("opaque response"), withTimeout(2_000) { receivedEvent.await() })
+        val responseMessage = GatewayMessage.newBuilder()
+            .setId("response-id")
+            .setTimestampMs(1234L)
+            .setGreeting(Greeting.newBuilder().setMessage("server greeting"))
+            .build()
+        socket.listener.onMessage(socket, ByteString.of(*responseMessage.toByteArray()))
+        assertEquals(
+            GatewayEvent.Message(responseMessage),
+            withTimeout(2_000) { receivedEvent.await() },
+        )
 
         socket.listener.onClosed(socket, 1000, "")
         withTimeout(2_000) { gateway.state.first { it is GatewayState.Reconnecting } }
-        assertTrue(logger.messages.none { "opaque request" in it || "opaque response" in it })
+        assertTrue(
+            logger.messages.none {
+                "opaque request" in it || "server greeting" in it || "response-id" in it
+            },
+        )
         gateway.disconnect()
     }
 

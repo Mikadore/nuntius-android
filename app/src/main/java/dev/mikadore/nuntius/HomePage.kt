@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -63,7 +64,7 @@ class HomeViewModel @Inject constructor(
 
     val gatewayState: StateFlow<GatewayState> = gatewayConnection.state
 }
-
+@Preview
 @Composable
 fun HomePage(
     viewModel: HomeViewModel = hiltViewModel(),

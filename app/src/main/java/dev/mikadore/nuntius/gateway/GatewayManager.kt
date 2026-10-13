@@ -1,9 +1,11 @@
 package dev.mikadore.nuntius.gateway
 
+import com.google.protobuf.InvalidProtocolBufferException
 import dev.mikadore.nuntius.network.AuthSession
 import dev.mikadore.nuntius.network.InvalidServerUrlException
 import dev.mikadore.nuntius.repos.AuthState
 import dev.mikadore.nuntius.repos.AuthUser
+import dev.nuntius.gateway.proto.GatewayMessage
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -259,15 +261,31 @@ class GatewayManager @Inject constructor(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                logger.debug("Inbound text frame received (characters=${text.length}).")
-                if (isCurrentUser(runGeneration, user)) mutableEvents.tryEmit(GatewayEvent.Text(text))
+                logger.warn(
+                    "Discarding inbound WebSocket text frame; gateway messages must be binary " +
+                        "protobuf (characters=${text.length}).",
+                )
             }
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                logger.debug("Inbound binary frame received (bytes=${bytes.size}).")
-                if (isCurrentUser(runGeneration, user)) {
-                    mutableEvents.tryEmit(GatewayEvent.Binary(bytes.toByteArray()))
+                if (!isCurrentUser(runGeneration, user)) return
+
+                val message = try {
+                    GatewayMessage.parseFrom(bytes.toByteArray())
+                } catch (_: InvalidProtocolBufferException) {
+                    logger.warn(
+                        "Discarding malformed binary WebSocket frame; expected GatewayMessage " +
+                            "protobuf (bytes=${bytes.size}).",
+                    )
+                    return
                 }
+
+                val hasConsumer = mutableEvents.subscriptionCount.value > 0
+                mutableEvents.tryEmit(GatewayEvent.Message(message))
+                logger.debug(
+                    "Inbound GatewayMessage parsed (bytes=${bytes.size}, " +
+                        "payload=${message.payloadCase}, consumer=$hasConsumer).",
+                )
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {

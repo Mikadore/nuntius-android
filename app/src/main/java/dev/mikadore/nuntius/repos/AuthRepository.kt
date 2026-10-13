@@ -93,6 +93,14 @@ class AuthRepository @Inject constructor(
         latestAuthState = AuthState.LoggedOut
     }
 
+    /** Clears every persisted app preference and removes the in-memory authenticated session. */
+    suspend fun clearAllPreferences() {
+        dataStore.edit { preferences ->
+            preferences.clear()
+        }
+        latestAuthState = AuthState.LoggedOut
+    }
+
     private suspend fun migrateLegacyCredential() {
         if (legacyMigrationComplete) return
         migrationMutex.withLock {

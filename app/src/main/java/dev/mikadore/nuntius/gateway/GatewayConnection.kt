@@ -1,5 +1,6 @@
 package dev.mikadore.nuntius.gateway
 
+import dev.nuntius.gateway.proto.GatewayMessage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -18,10 +19,9 @@ sealed interface GatewayState {
     data class Error(val message: String) : GatewayState
 }
 
-/** Opaque transport events. The gateway does not interpret or persist application messages. */
+/** Parsed application messages received as binary protobuf frames from the gateway. */
 sealed interface GatewayEvent {
-    data class Text(val value: String) : GatewayEvent
-    data class Binary(val value: ByteArray) : GatewayEvent
+    data class Message(val value: GatewayMessage) : GatewayEvent
 }
 
 /** Application-wide control and observation surface for the authenticated gateway socket. */

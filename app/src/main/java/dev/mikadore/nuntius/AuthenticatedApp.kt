@@ -1,6 +1,7 @@
 package dev.mikadore.nuntius
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -12,8 +13,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -34,9 +37,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -46,6 +51,7 @@ import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
 import dev.mikadore.nuntius.gateway.GatewayService
 import dev.mikadore.nuntius.gateway.GatewayLogger
+import dev.mikadore.nuntius.repos.AuthRepository
 import dev.mikadore.nuntius.ui.theme.NuntiusTheme
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -54,6 +60,9 @@ import javax.inject.Inject
 class AuthenticatedApp : ComponentActivity() {
     @Inject
     lateinit var gatewayLogger: GatewayLogger
+
+    @Inject
+    lateinit var authRepository: AuthRepository
 
     private val notificationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -74,8 +83,16 @@ class AuthenticatedApp : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             NuntiusTheme {
-                AuthenticatedAppContent()
+                AuthenticatedAppContent(onResetPreferences = ::resetPreferences)
             }
+        }
+    }
+
+    private fun resetPreferences() {
+        lifecycleScope.launch {
+            authRepository.clearAllPreferences()
+            startActivity(Intent(this@AuthenticatedApp, LoginActivity::class.java))
+            finish()
         }
     }
 
@@ -93,6 +110,7 @@ class AuthenticatedApp : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AuthenticatedAppContent(
+    onResetPreferences: () -> Unit,
     sidebarViewModel: SidebarViewModel = hiltViewModel(),
 ) {
     val navController = rememberNavController()
@@ -119,14 +137,33 @@ private fun AuthenticatedAppContent(
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
                 AppDestination.entries.forEach { destination ->
+                    if (destination == AppDestination.SETTINGS) {
+                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 20.dp))
+                        Spacer(Modifier.height(8.dp))
+                    }
                     NavigationDrawerItem(
                         icon = {
-                            Icon(
-                                painter = painterResource(destination.iconRes),
-                                contentDescription = null,
+                            when (destination) {
+                                AppDestination.HOME -> Icon(
+                                    painter = painterResource(R.drawable.ic_home),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+
+                                AppDestination.SETTINGS -> Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        },
+                        label = {
+                            Text(
+                                text = destination.label,
+                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
                             )
                         },
-                        label = { Text(destination.label) },
                         selected = selectedRoute == destination.route,
                         onClick = {
                             sidebarViewModel.onDestinationSelected(destination)
@@ -163,6 +200,7 @@ private fun AuthenticatedAppContent(
         ) { innerPadding ->
             AuthenticatedNavHost(
                 navController = navController,
+                onResetPreferences = onResetPreferences,
                 modifier = Modifier.padding(innerPadding).fillMaxSize(),
             )
         }
@@ -172,6 +210,7 @@ private fun AuthenticatedAppContent(
 @Composable
 private fun AuthenticatedNavHost(
     navController: NavHostController,
+    onResetPreferences: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -182,18 +221,10 @@ private fun AuthenticatedNavHost(
         composable(AppDestination.HOME.route) {
             HomePage()
         }
-        composable(AppDestination.FAVORITES.route) {
-            DestinationPage(AppDestination.FAVORITES)
-        }
-        composable(AppDestination.PROFILE.route) {
-            DestinationPage(AppDestination.PROFILE)
+        composable(AppDestination.SETTINGS.route) {
+            SettingsPage(onResetPreferences = onResetPreferences)
         }
     }
-}
-
-@Composable
-private fun DestinationPage(destination: AppDestination) {
-    Text(destination.label)
 }
 
 private fun NavHostController.navigateTo(destination: AppDestination) {
@@ -211,11 +242,9 @@ private fun NavHostController.navigateTo(destination: AppDestination) {
 enum class AppDestination(
     val route: String,
     val label: String,
-    val iconRes: Int,
 ) {
-    HOME("home", "Home", R.drawable.ic_home),
-    FAVORITES("favorites", "Favorites", R.drawable.ic_favorite),
-    PROFILE("profile", "Profile", R.drawable.ic_account_box),
+    HOME("home", "Home"),
+    SETTINGS("settings", "Settings"),
     ;
 
     companion object {

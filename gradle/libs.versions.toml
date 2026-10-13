@@ -16,6 +16,8 @@ playServicesCodeScanner = "16.1.0"
 dataStore = "1.2.1"
 room = "2.8.4"
 openApiGenerator = "7.26.0"
+protobuf = "4.36.2"
+protobufPlugin = "0.10.0"
 retrofit = "2.11.0"
 okhttp = "3.14.9"
 gsonFire = "1.9.0"
@@ -55,6 +57,7 @@ retrofit-converter-scalars = { group = "com.squareup.retrofit2", name = "convert
 gson-fire = { group = "io.gsonfire", name = "gson-fire", version.ref = "gsonFire" }
 jsr305 = { group = "com.google.code.findbugs", name = "jsr305", version.ref = "jsr305" }
 javax-annotation-api = { group = "javax.annotation", name = "javax.annotation-api", version.ref = "javaxAnnotation" }
+protobuf-javalite = { group = "com.google.protobuf", name = "protobuf-javalite", version.ref = "protobuf" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -62,3 +65,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 dagger-hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openApiGenerator" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }
